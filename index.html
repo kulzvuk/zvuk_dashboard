@@ -169,7 +169,11 @@ h2{font:600 14px/1.4 var(--f-ui);margin:0}
 .sec-h .meta-t{color:var(--faint);font-size:13px}
 
 /* сегодня */
-.rundown{background:var(--surface);border:1px solid var(--line);border-radius:6px}
+.rundown{background:var(--surface);border:1px solid var(--line);border-radius:6px;max-height:232px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
+.rundown .rd{padding-block:3px}
+.rundown .rd-label{position:sticky;top:0;background:var(--surface);z-index:1;padding-top:6px}
+.col-h .sort{margin-left:auto;border:0;background:transparent;color:var(--faint);font-size:12.5px;cursor:pointer;padding:2px 0;max-width:60%}
+.col-h .sort:hover{color:var(--ink)}
 .rd-group+.rd-group{border-top:1px solid var(--line)}
 .rd-label{font-size:12px;font-weight:500;color:var(--faint);padding:8px 14px 2px}
 .rd-label.bad{color:var(--danger)}
@@ -226,6 +230,12 @@ h2{font:600 14px/1.4 var(--f-ui);margin:0}
 .task:hover .acts,.task:focus-within .acts{opacity:1}
 @media (hover:none){.t-foot .acts{opacity:1}}
 
+.tkey{font-family:var(--f-data);font-size:12px;font-weight:500;color:var(--accent);text-decoration:none;letter-spacing:0;white-space:nowrap}
+.tkey:hover{text-decoration:underline;text-underline-offset:2px}
+.key-row{line-height:1.2;margin-bottom:2px}
+.clickable{cursor:pointer}
+.clickable:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.cmt{cursor:inherit}
 .done-list summary{cursor:pointer;color:var(--faint);font-size:13px;padding:2px 0;list-style:none;display:flex;align-items:center;gap:4px}
 .done-list summary::-webkit-details-marker{display:none}
 .done-list[open] summary svg{transform:rotate(90deg)}
@@ -512,16 +522,37 @@ function renderSummary(){
     part(week,"к сроку в ближайшие 7 дней"));
 }
 
+/* ключ задачи из ссылки: DLS-904 из …/browse/DLS-904, иначе последний сегмент пути */
+function ticketKey(url){
+  if(!url)return"";
+  let u;try{u=new URL(url)}catch{return""}
+  const m=(u.pathname+u.search).match(/\b([A-Z][A-Z0-9_]+-\d+)\b/);
+  if(m)return m[1];
+  const generic=/^(edit|view|preview|index(\.html?)?|home|main|browse|overview|summary|board|boards|d|u|0)$/i;
+  const segs=u.pathname.split("/").filter(Boolean).map(x=>{try{return decodeURIComponent(x.replace(/\+/g," "))}catch{return x}}).filter(x=>!generic.test(x));
+  const seg=segs.pop()||"";
+  return seg.length&&seg.length<=24?seg:"";
+}
+const keyLink=(t,cls)=>{const k=ticketKey(t.url);return k?el("a",{class:"tkey "+(cls||""),href:t.url,target:"_blank",rel:"noopener",title:"Открыть "+t.url},k):null};
+/* клик по карточке открывает редактор, кроме ссылок и контролов */
+const NOEDIT="a,button,select,input,textarea,label,summary";
+function editable(node,t){
+  node.tabIndex=0;node.classList.add("clickable");node.setAttribute("aria-label","Задача «"+(t.title||shortUrl(t.url))+"», открыть для изменения");
+  node.addEventListener("click",e=>{if(e.target.closest(NOEDIT))return;if(window.getSelection&&String(getSelection()).length)return;startEdit(t.block,t.id,"",node)});
+  node.addEventListener("keydown",e=>{if(e.target!==node)return;if(e.key==="Enter"||e.key===" "){e.preventDefault();startEdit(t.block,t.id,"",node)}});
+  return node;
+}
+
 function rdRow(t,kind,time){
   const done=isDone(t);
   const label=t.title||shortUrl(t.url)||"Без названия";
-  return el("div",{class:"rd"+(done?" done":"")},
+  return editable(el("div",{class:"rd"+(done?" done":"")},
     el("span",{class:"t"},time||""),
     el("span",{class:"dot "+kind,title:BLOCKS[kind].name}),
     el("span",{class:"what"},
-      t.url?el("a",{href:t.url,target:"_blank",rel:"noopener"},label):el("span",{class:"tt"},label),
+      keyLink(t),el("span",{class:"tt"},label),
       t.assignee?el("span",{class:"who"},t.assignee):null,el("span",{class:"kind"},BLOCKS[kind].name)),
-    el("span",{class:"tag"},statusSelect(t)));
+    el("span",{class:"tag"},statusSelect(t))),t);
 }
 
 function renderRundown(){
@@ -557,18 +588,31 @@ function renderBoard(){
   $("#board").replaceChildren(...Object.keys(BLOCKS).map(renderCol));
 }
 
+/* сортировка колонок, запоминается в браузере */
+const SORTS={def:"По дате",st:"Статус: To Do → Done",stdesc:"Статус: Done → To Do"};
+let sortMode={};try{sortMode=JSON.parse(localStorage.getItem("zvuk-sort")||"{}")||{}}catch{}
+function setSort(b,v){sortMode[b]=v;try{localStorage.setItem("zvuk-sort",JSON.stringify(sortMode))}catch{};renderBoard()}
+function applySort(b,arr){
+  const m=sortMode[b]||"def";if(m==="def")return arr;
+  const dir=m==="stdesc"?-1:1;
+  return arr.map((t,i)=>[t,i]).sort((a,c)=>dir*(ST_KEYS.indexOf(statusOf(a[0]))-ST_KEYS.indexOf(statusOf(c[0])))||a[1]-c[1]).map(x=>x[0]);
+}
+
 function renderCol(b){
   const cfg=BLOCKS[b];let list=byBlock(b),open,done;
   if(b==="reg"){open=list.sort((x,y)=>(regToday(y)-regToday(x))||(x.time||"99").localeCompare(y.time||"99"));done=[]}
-  else if(b==="inc"){open=list.filter(t=>!isDone(t)).sort((x,y)=>ST_KEYS.indexOf(statusOf(x))-ST_KEYS.indexOf(statusOf(y))||(y.created||"").localeCompare(x.created||""));done=list.filter(isDone).sort((x,y)=>(y.closed||"").localeCompare(x.closed||""))}
+  else if(b==="inc"){open=list.filter(t=>!isDone(t)).sort((x,y)=>(y.created||"").localeCompare(x.created||"")||(y.createdAt||"").localeCompare(x.createdAt||""));done=list.filter(isDone).sort((x,y)=>(y.closed||"").localeCompare(x.closed||""))}
   else{open=list.filter(t=>!isDone(t)).sort((x,y)=>(x.due||"9999").localeCompare(y.due||"9999")||(x.time||"99").localeCompare(y.time||"99"));done=list.filter(isDone).sort((x,y)=>(y.due||"").localeCompare(x.due||""))}
+  open=applySort(b,open);done=applySort(b,done);
   const quick=el("form",{class:"quick",onsubmit:e=>{e.preventDefault();const i=e.target.elements[0];const v=i.value.trim();i.value="";startEdit(b,null,v,i)}},
     el("input",{id:"quick-"+b,placeholder:"Новая задача или ссылка",autocomplete:"off","aria-label":"Новая задача в блоке «"+cfg.name+"»"}),
     el("button",{class:"btn",type:"submit","aria-label":"Добавить задачу"},icon("plus")));
   const body=open.length?el("div",{class:"list"},open.map(taskRow))
     :ready?el("div",{class:"empty"},el("b",{},cfg.empty[0]),cfg.empty[1]):el("div",{class:"empty"},el("div",{class:"skel",style:"width:70%"}));
   return el("section",{class:"col "+cfg.cls,"aria-labelledby":"h-"+b},
-    el("div",{class:"col-h"},el("span",{class:"sq"}),el("h2",{id:"h-"+b},cfg.name),el("span",{class:"n"},String(open.length)),el("span",{class:"hint"},cfg.hint)),
+    el("div",{class:"col-h"},el("span",{class:"sq"}),el("h2",{id:"h-"+b},cfg.name),el("span",{class:"n"},String(open.length)),
+      el("select",{class:"sort",id:"sort-"+b,"aria-label":"Сортировка: "+cfg.name,title:"Сортировка",onchange:e=>setSort(b,e.target.value)},
+        Object.entries(SORTS).map(([k,l])=>el("option",{value:k,selected:(sortMode[b]||"def")===k},l)))),
     quick,body,
     done.length?el("details",{class:"done-list",id:"done-"+b,open:openDone.has(b)||null,ontoggle:e=>{e.target.open?openDone.add(b):openDone.delete(b)}},
       el("summary",{},icon("chev"),"Выполнено: "+done.length),el("div",{class:"list"},done.map(taskRow))):null);
@@ -591,12 +635,12 @@ function taskRow(t){
   }
   if(t.assignee)meta.append(el("span",{class:"chip",title:"Исполнитель"},"@"+t.assignee));
   const open=e=>startEdit(t.block,t.id,"",e&&e.currentTarget);
-  return el("article",{class:"task"+(done?" is-done":"")},
-    el("div",{class:"t-head"},el("div",{class:"ttl"},t.url?el("a",{href:t.url,target:"_blank",rel:"noopener"},label):label),statusSelect(t)),
-    t.comment?el("div",{class:"cmt",title:"Открыть задачу",onclick:open},t.comment):null,
+  const key=keyLink(t);
+  return editable(el("article",{class:"task"+(done?" is-done":"")},
+    el("div",{class:"t-head"},el("div",{class:"ttl"},key?el("div",{class:"key-row"},key):null,label),statusSelect(t)),
+    t.comment?el("div",{class:"cmt"},t.comment):null,
     el("div",{class:"t-foot"},meta,el("div",{class:"acts"},
-      t.url?el("a",{class:"iconbtn",href:t.url,target:"_blank",rel:"noopener","aria-label":"Открыть ссылку: "+shortUrl(t.url),title:shortUrl(t.url)},icon("ext")):null,
-      el("button",{type:"button",class:"iconbtn","aria-label":"Изменить задачу «"+label+"»",title:"Изменить",onclick:open},icon("edit")))));
+      t.url?el("a",{class:"iconbtn",href:t.url,target:"_blank",rel:"noopener","aria-label":"Открыть ссылку: "+shortUrl(t.url),title:shortUrl(t.url)},icon("ext")):null))),t);
 }
 
 /* ---------- редактор на месте ---------- */
