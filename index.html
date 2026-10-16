@@ -169,7 +169,7 @@ h2{font:600 14px/1.4 var(--f-ui);margin:0}
 .sec-h .meta-t{color:var(--faint);font-size:13px}
 
 /* сегодня */
-.rundown{background:var(--surface);border:1px solid var(--line);border-radius:6px;max-height:232px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
+.rundown{background:var(--surface);border:1px solid var(--line);border-radius:6px;max-height:164px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
 .rundown .rd{padding-block:3px}
 .rundown .rd-label{position:sticky;top:0;background:var(--surface);z-index:1;padding-top:6px}
 .col-h .sort{margin-left:auto;border:0;background:transparent;color:var(--faint);font-size:12.5px;cursor:pointer;padding:2px 0;max-width:60%}
@@ -820,7 +820,7 @@ setInterval(()=>{const m=nowHM();if(m!==lastMin){lastMin=m;renderSummary();rende
 <script>
 /* автообновление установленного приложения: сверяет версию с сервером в обход кеша */
 (function(){
-  var V="202610160919";
+  var V="202610160921";
   function check(){
     if(!/github\.io$/.test(location.hostname))return;
     fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.ok?r.json():null}).then(function(d){
