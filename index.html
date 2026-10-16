@@ -555,17 +555,21 @@ function rdRow(t,kind,time){
     el("span",{class:"tag"},statusSelect(t))),t);
 }
 
+/* порядок в «Актуальном»: в работе сверху, затем на проверке, To Do, на паузе, готовые */
+const RD_ORDER={prog:0,review:1,todo:2,hold:3,done:4};
+const rdRank=t=>RD_ORDER[statusOf(t)]??2;
+
 function renderRundown(){
   const box=$("#rundown");
   $("#rd-meta").textContent="";
   if(!ready){box.replaceChildren(el("div",{class:"rd-empty"},el("div",{class:"skel",style:"width:60%"}),el("div",{class:"skel",style:"width:40%;margin-top:10px"})));return}
-  const overdue=[...byBlock("pln").filter(t=>!isDone(t)&&t.due&&dayDiff(t.due)<0).map(t=>({t,k:"pln",d:t.due})),...byBlock("reg").filter(regLate).map(t=>({t,k:"reg",d:t.deadline}))].sort((a,b)=>a.d.localeCompare(b.d));
+  const overdue=[...byBlock("pln").filter(t=>!isDone(t)&&t.due&&dayDiff(t.due)<0).map(t=>({t,k:"pln",d:t.due})),...byBlock("reg").filter(regLate).map(t=>({t,k:"reg",d:t.deadline}))].sort((a,b)=>rdRank(a.t)-rdRank(b.t)||a.d.localeCompare(b.d));
   const timed=[],untimed=[];
   byBlock("reg").filter(regToday).forEach(t=>untimed.push({t,k:"reg"}));
   byBlock("pln").filter(t=>t.due&&dayDiff(t.due)===0).forEach(t=>(t.time?timed:untimed).push({t,k:"pln"}));
   byBlock("inc").filter(t=>!isDone(t)&&statusOf(t)!=="hold").forEach(t=>untimed.push({t,k:"inc"}));
   timed.sort((a,b)=>a.t.time.localeCompare(b.t.time));
-  untimed.sort((a,b)=>isDone(a.t)-isDone(b.t));
+  untimed.sort((a,b)=>rdRank(a.t)-rdRank(b.t));
   const total=overdue.length+timed.length+untimed.length;
   const done=[...timed,...untimed].filter(x=>isDone(x.t)).length;
   if(total)$("#rd-meta").textContent="выполнено "+done+" из "+(timed.length+untimed.length);
@@ -820,7 +824,7 @@ setInterval(()=>{const m=nowHM();if(m!==lastMin){lastMin=m;renderSummary();rende
 <script>
 /* автообновление установленного приложения: сверяет версию с сервером в обход кеша */
 (function(){
-  var V="202610160923";
+  var V="202610160943";
   function check(){
     if(!/github\.io$/.test(location.hostname))return;
     fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.ok?r.json():null}).then(function(d){
