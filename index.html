@@ -579,7 +579,7 @@ function renderRundown(){
     if(!placed)rows.push(nowRow(now));
     groups.push(el("div",{class:"rd-group"},el("div",{class:"rd-label"},"По времени"),rows));
   }
-  if(untimed.length)groups.push(el("div",{class:"rd-group"},el("div",{class:"rd-label"},"Без времени"),untimed.map(({t,k})=>rdRow(t,k,""))));
+  if(untimed.length)groups.push(el("div",{class:"rd-group"},untimed.map(({t,k})=>rdRow(t,k,""))));
   box.replaceChildren(...groups);
 }
 const nowRow=hm=>el("div",{class:"rd-now","aria-label":"Сейчас "+hm},el("span",{class:"t"},hm),el("span",{class:"line"}));
@@ -820,7 +820,7 @@ setInterval(()=>{const m=nowHM();if(m!==lastMin){lastMin=m;renderSummary();rende
 <script>
 /* автообновление установленного приложения: сверяет версию с сервером в обход кеша */
 (function(){
-  var V="202610160921";
+  var V="202610160923";
   function check(){
     if(!/github\.io$/.test(location.hostname))return;
     fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.ok?r.json():null}).then(function(d){
