@@ -817,5 +817,20 @@ let lastMin="";
 setInterval(()=>{const m=nowHM();if(m!==lastMin){lastMin=m;renderSummary();renderRundown();renderBoard()}},30000);
 </script>
 
+<script>
+/* автообновление установленного приложения: сверяет версию с сервером в обход кеша */
+(function(){
+  var V="202610160919";
+  function check(){
+    if(!/github\.io$/.test(location.hostname))return;
+    fetch("version.json?t="+Date.now(),{cache:"no-store"}).then(function(r){return r.ok?r.json():null}).then(function(d){
+      if(d&&d.version&&d.version!==V){try{if(sessionStorage.getItem("zvuk-reloaded")===d.version)return;sessionStorage.setItem("zvuk-reloaded",d.version)}catch(e){}
+        location.replace(location.pathname+"?v="+d.version);}
+    }).catch(function(){});
+  }
+  check();
+  document.addEventListener("visibilitychange",function(){if(document.visibilityState==="visible")check()});
+})();
+</script>
 </body>
 </html>
